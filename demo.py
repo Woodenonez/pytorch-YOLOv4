@@ -23,7 +23,7 @@ from simple_tracker import Simple_tracker as st
 """hyper parameters"""
 use_cuda = True
 torch.cuda.empty_cache()
-# boxes = [[[xmin, xmax, ymin, ymax, confidence, confidence, class]]]
+# boxes = [[[xmin/res, ymin/res, xmax/res, ymax/res, confidence, confidence, class]]]
 
 def detect_cv2(cfgfile, weightfile, imgfile):
     import cv2
@@ -86,7 +86,7 @@ def detect_cv2_video(cfgfile, weightfile, videofile):
         namesfile = 'data/x.names'
     class_names = load_class_names(namesfile)
 
-    mst = st((1280,720), occlude_delay=30)
+    mst = st((1280,720), iou_thre=0.1, occlude_delay=30, target_label=0)
 
     frame = 0
     fps_timer = time.time()
@@ -115,7 +115,6 @@ def detect_cv2_video(cfgfile, weightfile, videofile):
             result_img = cv2.putText(result_img, str(df.iloc[i,:]['ID']), 
                                  (x0,y0), cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(0,0,255))
         ##################################################################
-
         result_img = cv2.putText(result_img, 'FPS:'+str(round(1/(time.time()-fps_timer),2)), 
                                  (0,25), cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(0,0,0))
         fps_timer = time.time()
@@ -155,7 +154,12 @@ def detect_cv2_camera(cfgfile, weightfile):
         namesfile = 'data/x.names'
     class_names = load_class_names(namesfile)
 
+    mst = st((1280,720), iou_thre=0.1, occlude_delay=30, target_label=None)
+
+    frame = 0
+    fps_timer = time.time()
     while True:
+        frame += 1
         ret, img = cap.read()
         sized = cv2.resize(img, (m.width, m.height))
         sized = cv2.cvtColor(sized, cv2.COLOR_BGR2RGB)
@@ -166,6 +170,21 @@ def detect_cv2_camera(cfgfile, weightfile):
         print('Predicted in %f seconds.' % (finish - start))
 
         result_img = plot_boxes_cv2(img, boxes[0], savename=None, class_names=class_names)
+
+        ##################################################################
+        mst.obj_tracking(boxes, frame)
+        # print(mst.tracking_obj.loc[mst.tracking_obj['Frame']==frame])
+        # mst.plot_tracking_onimage(frame, img)
+        df = mst.tracking_obj.loc[mst.tracking_obj['Frame']==frame,:]
+        for i in range(df.shape[0]):
+            x0 = int((df.iloc[i,:]['xmin'] + df.iloc[i,:]['xmax']) / 2)
+            y0 = int((df.iloc[i,:]['ymin'] + df.iloc[i,:]['ymax']) / 2)
+            result_img = cv2.putText(result_img, str(df.iloc[i,:]['ID']), 
+                                 (x0,y0), cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(0,0,255))
+        ##################################################################
+        result_img = cv2.putText(result_img, 'FPS:'+str(round(1/(time.time()-fps_timer),2)), 
+                                 (0,25), cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(0,0,0))
+        fps_timer = time.time()
 
         cv2.imshow('Yolo demo', result_img)
         if cv2.waitKey(1) & 0xFF==ord('q'):

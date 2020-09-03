@@ -12,3 +12,5 @@ print(list(set(a['ID'].values.tolist())))
 
 # for box in boxes[0]:
 #     print(box)
+
+print(list(range(10,-1,-1)))

@@ -9,11 +9,12 @@ from matplotlib.collections import PatchCollection
 
 
 class Simple_tracker():
-    def __init__(self, resolution, iou_thre=0.1, occlude_delay=10):
+    def __init__(self, resolution, iou_thre=0.1, occlude_delay=10, target_label=-1):
         super().__init__()
         self.res = resolution # (width x height) in px
         self.thre = iou_thre
         self.delay = occlude_delay # after 'delay' time the obj is regarded died
+        self.tlabel = target_label
         self.tracking_obj = pd.DataFrame({'ID':[0], 'Frame':0, 'xmin':0, 'ymin':0, 'xmax':0, 'ymax':0, 'Conf':0, 'Label':'test', 'Occlude':0})
 
     def obj_tracking(self, boxes, frame):
@@ -47,8 +48,11 @@ class Simple_tracker():
                     id += 1
                     df = self.box2df(boxes[0][i], id, frame)
                 else: # existing objects
-                    df = self.box2df(boxes[0][i], obj_last.loc[idx,'ID'], frame)
-                    no_match.remove(idx)
+                    try:
+                        no_match.remove(idx)
+                        df = self.box2df(boxes[0][i], obj_last.loc[idx,'ID'], frame)
+                    except:
+                        continue
                 self.tracking_obj = self.tracking_obj.append(df)
             for i in no_match:
                 if obj_last.loc[i,'Occlude']<self.delay:
@@ -131,6 +135,9 @@ class Simple_tracker():
         ### boxes = (list) batch*sample*dimension
         ### sample = [xmin, ymin, xmax, ymax, confidence, confidence, class]
         boxes = boxes[0]
+        for i in range(np.array(boxes).shape[0]-1,-1,-1):
+            if self.tlabel not in [boxes[i][-1], -1]:
+                del boxes[i]
         nobj = np.array(boxes).shape[0]
         for i in range(nobj-1):
             for j in range(i+1,nobj):
@@ -166,33 +173,19 @@ class Simple_tracker():
 
 if __name__ == '__main__':
 
-    boxes0 = [[[0, 0, 2, 2, 0.9237443, 0.9237443, 1], 
-              [8, 8, 10, 10, 0.9179137, 0.9179137, 2], 
-              [3, 3, 5, 5, 0.9790077, 0.9790077, 3]]]
-    boxes1 = [[[1, 1, 3, 3, 0.9237443, 0.9237443, 1], 
-              [8, 7, 10, 9, 0.9179137, 0.9179137, 2]]]
-    boxes2 = [[[1, 0, 3, 2, 0.9237443, 0.9237443, 1], 
-              [7, 7, 9, 9, 0.9179137, 0.9179137, 2], 
-              [4, 3, 6, 5, 0.9790077, 0.9790077, 3]]]
+    boxes0 = [[[0, 0, 0.2, 0.2, 0.9237443, 0.9237443, 1], 
+              [0.8, 0.8, 1, 1, 0.9179137, 0.9179137, 2], 
+              [0.3, 0.3, 0.5, 0.5, 0.9790077, 0.9790077, 3]]]
+    boxes1 = [[[0.1, 0.1, 0.3, 0.3, 0.9237443, 0.9237443, 1], 
+              [0.8, 0.7, 1, 0.9, 0.9179137, 0.9179137, 2]]]
+    boxes2 = [[[0.1, 0, 0.3, 0.2, 0.9237443, 0.9237443, 1], 
+              [0.7, 0.7, 0.9, 0.9, 0.9179137, 0.9179137, 2], 
+              [0.4, 0.3, 0.6, 0.5, 0.9790077, 0.9790077, 3]]]
     BOX = [boxes0, boxes1, boxes2]
 
 
-    # fig, ax = plt.subplots(1)
-    # recs = []
-    # c = ['r', 'b', 'y']
-
-    st = Simple_tracker((20,20))
+    st = Simple_tracker((10,10))
     for i in range(len(BOX)):
         st.obj_tracking(BOX[i], frame=i+1)
 
-    st.plot_tracking(frame=0)
-    #     print(st.tracking_obj)
-
-    #     for box in BOX[i][0]:
-    #         recs.append(pth.Rectangle((box[0],box[2]), width=(box[1]-box[0]), height=(box[3]-box[2]), color=c[i]))
-    #     pc = PatchCollection(recs, match_original=True, alpha=0.2, edgecolor='b')
-    #     ax.add_collection(pc)
-    # ax.set_xlim([0,10])
-    # ax.set_ylim([0,10])
-    # ax.axis('equal')
-    # plt.show()
+    st.plot_tracking(frame=0) # if frame<1, then show all frames
